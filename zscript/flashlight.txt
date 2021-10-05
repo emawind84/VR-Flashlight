@@ -138,6 +138,9 @@ class TrackedSpotLight : Spotlight {
 				s_angle = toFollow.AttackAngle;
 				s_pitch = toFollow.AttackPitch;
 			}
+
+			console.printf("offhand pitch = %d", toFollow.OffhandPitch);
+			console.printf("attack pitch = %d", toFollow.AttackPitch);
 			
 			offset = (toFollow.radius, 0, 0);
 			
@@ -417,6 +420,7 @@ Class S_FlashLight : Fist
 		if(vr_flashlight_mount < 2 || invoker.owner.player.ReadyWeapon == invoker)
 		{
 			if(invoker.offhand_flashlight) invoker.offhand_flashlight.destroy();
+			invoker.owner.player.OffhandWeapon = null;
 			fl.offhand = false;
 			return;
 		}
@@ -426,6 +430,7 @@ Class S_FlashLight : Fist
 			if(!fl.on)
 			{
 				if(invoker.offhand_flashlight) invoker.offhand_flashlight.destroy();
+				invoker.owner.player.OffhandWeapon = null;
 				return;
 			}
 		
@@ -435,17 +440,14 @@ Class S_FlashLight : Fist
 			
 			if(!invoker.offhand_flashlight)
 			{
-				invoker.offhand_flashlight = Actor.Spawn("OffhandFlashlight", pmo.OffhandPos);
+				invoker.offhand_flashlight = Actor.Spawn("OffhandFlashlight");
 				invoker.offhand_flashlight.master = invoker.owner;
+				invoker.owner.player.OffhandWeapon = invoker.offhand_flashlight;
 			}
-			
+
 			OffhandFlashlight(invoker.offhand_flashlight).battery_level = invoker.fl_batt_level;
 			OffhandFlashlight(invoker.offhand_flashlight).battery_low = invoker.fl_batt_low_blink;
-			
-			invoker.offhand_flashlight.A_SetAngle(pmo.OffhandAngle + 90.0);
-			invoker.offhand_flashlight.A_SetPitch(-pmo.OffhandPitch, SPF_INTERPOLATE);
-			invoker.offhand_flashlight.A_SetRoll(pmo.OffhandRoll);
-			invoker.offhand_flashlight.SetOrigin(pmo.OffhandPos, true);
+			OffhandFlashlight(invoker.offhand_flashlight).light_on = fl.on;
 		}
 	}
 	
@@ -586,13 +588,15 @@ Class S_FlashLight : Fist
 	}
 }
 
-Class OffhandFlashlight : Actor
+Class OffhandFlashlight : Weapon
 {
 	Int battery_level;
 	Int battery_low;
+	bool light_on;
 
 	Default
 	{
+	+INVISIBLE
 	+FRIENDLY
 	+NOBLOOD
 	+GHOST
@@ -647,11 +651,21 @@ Class OffhandFlashlight : Actor
 	{
 		Int model_type = CVar.GetCVar("vr_flashlight_model").GetInt();
 		String w_sprite;
-		
+
 		if(model_type == 1)
-			w_sprite = "FLTE";
+		{
+			if(invoker.light_on)
+				w_sprite = "FLTE";
+			else
+				w_sprite = "FLTN";
+		}
 		else
-			w_sprite = "FLTV";
+		{
+			if(invoker.light_on)
+				w_sprite = "FLTV";
+			else
+				w_sprite = "FLVN";
+		}
 			
 		sprite = GetSpriteIndex(w_sprite);
 	}
@@ -660,14 +674,21 @@ Class OffhandFlashlight : Actor
 	{
 	Spawn:
 	Idle:
+	Ready:
+	Select:
+	Deselect:
+	Fire:
 		FLTE A 0 A_CheckModel();
-		"####" A 0 A_JumpIf(invoker.battery_level == -1, 2);
-		"####" A 0 A_JumpIf(vr_flashlight_batt_overlay == 1, "Show.BatteryLevel");
+		"####" A 0 A_JumpIf(invoker.light_on == false, "Off");
+		"####" A 0 A_Overlay(1001, "BatteryOverlay");
 		"####" A 1;
 		Loop;
-	Show.BatteryLevel:
-		FLBT A 0 A_JumpIf(vr_flashlight_batt_overlay == 0, "Idle");
-		FLBT A 0 A_JumpIf(vr_flashlight_model == 0, "Show.VBatteryLevel");
+	Off:
+		FLTE A 0 A_CheckModel();
+		"####" A 1 A_JumpIf(invoker.light_on, "Idle");
+		Loop;
+	BatteryOverlay:
+		FLBT A 0 A_JumpIf(vr_flashlight_model == 0, "VBatteryOverlay");
 		FLBT A 0 A_JumpIf(invoker.battery_level == 0, "BatteryLevel0");
 		FLBT A 0 A_JumpIf(invoker.battery_level == 1, "BatteryLevel1");
 		FLBT A 0 A_JumpIf(invoker.battery_level == 2, "BatteryLevel2");
@@ -682,39 +703,39 @@ Class OffhandFlashlight : Actor
 		Stop;
 	BatteryLevel0:
 		FLBT A 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel1:
 		FLBT A 0 A_JumpIf(invoker.battery_low < 18, "BatteryLevel0");
 		FLBT B 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel2:
 		FLBT C 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel3:
 		FLBT D 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel4:
 		FLBT E 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel5:
 		FLBT F 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel6:
 		FLBT G 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel7:
 		FLBT H 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel8:
 		FLBT I 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel9:
 		FLBT J 1;
-		Goto Idle;
+		Stop;
 	BatteryLevel10:
 		FLBT K 1;
-		Goto Idle;
-	Show.VBatteryLevel:
+		Stop;
+	VBatteryOverlay:
 		FLBV A 0 A_JumpIf(invoker.battery_level == 0, "VBatteryLevel0");
 		FLBV A 0 A_JumpIf(invoker.battery_level == 1, "VBatteryLevel1");
 		FLBV A 0 A_JumpIf(invoker.battery_level == 2, "VBatteryLevel2");
@@ -729,38 +750,38 @@ Class OffhandFlashlight : Actor
 		Stop;
 	VBatteryLevel0:
 		FLBV A 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel1:
 		FLBV A 0 A_JumpIf(invoker.battery_low < 18, "VBatteryLevel0");
 		FLBV B 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel2:
 		FLBV C 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel3:
 		FLBV D 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel4:
 		FLBV E 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel5:
 		FLBV F 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel6:
 		FLBV G 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel7:
 		FLBV H 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel8:
 		FLBV I 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel9:
 		FLBV J 1;
-		Goto Idle;
+		Stop;
 	VBatteryLevel10:
 		FLBV K 1;
-		Goto Idle;
+		Stop;
 	Dummy:
 		FLTN A 0;
 		FLTV A 0;
