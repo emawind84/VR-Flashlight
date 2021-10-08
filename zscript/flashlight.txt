@@ -171,7 +171,7 @@ Class S_FlashLight : Fist
 	float fl_inner_angle;
 	float fl_outer_angle;
 	int fl_flicker;
-	Actor offhand_flashlight;
+	Weapon offhand_flashlight;
 	Int tic_count;
 	
 	override void BeginPlay()
@@ -440,9 +440,11 @@ Class S_FlashLight : Fist
 			
 			if(!invoker.offhand_flashlight)
 			{
-				invoker.offhand_flashlight = Actor.Spawn("OffhandFlashlight");
-				invoker.offhand_flashlight.master = invoker.owner;
+				invoker.offhand_flashlight = Weapon(Inventory(Spawn("OffhandFlashlight")));
+				invoker.offhand_flashlight.AttachToOwner (invoker.owner);
 				invoker.owner.player.OffhandWeapon = invoker.offhand_flashlight;
+				invoker.owner.player.PendingWeapon = WP_NOCHANGE;
+				pmo.BringUpWeapon();
 			}
 
 			OffhandFlashlight(invoker.offhand_flashlight).battery_level = invoker.fl_batt_level;
