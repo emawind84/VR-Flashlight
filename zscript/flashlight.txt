@@ -427,12 +427,12 @@ Class S_FlashLight : Fist
 	
 		if(vr_flashlight_mount == 2)
 		{
-			if(!fl.on)
-			{
-				if(invoker.offhand_flashlight) invoker.offhand_flashlight.destroy();
-				invoker.owner.player.OffhandWeapon = null;
-				return;
-			}
+			// if(!fl.on)
+			// {
+			// 	if(invoker.offhand_flashlight) invoker.offhand_flashlight.destroy();
+			// 	invoker.owner.player.OffhandWeapon = null;
+			// 	return;
+			// }
 		
 			fl.offhand = true;
 			
@@ -592,6 +592,7 @@ Class OffhandFlashlight : Weapon
 {
 	Int battery_level;
 	Int battery_low;
+	Int current_state;
 	bool light_on;
 
 	Default
@@ -655,19 +656,19 @@ Class OffhandFlashlight : Weapon
 		if(model_type == 1)
 		{
 			if(invoker.light_on)
-				w_sprite = "FLTE";
+				invoker.current_state = 1;
 			else
-				w_sprite = "FLTN";
+				invoker.current_state = 2;
 		}
 		else
 		{
 			if(invoker.light_on)
-				w_sprite = "FLTV";
+				invoker.current_state = 3;
 			else
-				w_sprite = "FLVN";
+				invoker.current_state = 4;
 		}
 			
-		sprite = GetSpriteIndex(w_sprite);
+		//sprite = GetSpriteIndex(w_sprite);
 	}
 	
 	States
@@ -679,13 +680,27 @@ Class OffhandFlashlight : Weapon
 	Deselect:
 	Fire:
 		FLTE A 0 A_CheckModel();
+		"####" A 0 A_JumpIf(invoker.current_state == 3, "Ready.Voxel");
 		"####" A 0 A_JumpIf(invoker.light_on == false, "Off");
 		"####" A 0 A_Overlay(1001, "BatteryOverlay");
 		"####" A 1;
 		Loop;
+	Ready.Voxel:
+		FLTV A 0 A_CheckModel();
+		"####" A 0 A_JumpIf(invoker.current_state == 1, "Ready");
+		"####" A 0 A_JumpIf(invoker.light_on == false, "Off.Voxel");
+		"####" A 0 A_Overlay(1001, "BatteryOverlay");
+		"####" A 1;
+		Loop;
 	Off:
-		FLTE A 0 A_CheckModel();
-		"####" A 1 A_JumpIf(invoker.light_on, "Idle");
+		FLTN A 0 A_CheckModel();
+		"####" A 0 A_JumpIf(invoker.current_state == 4, "Off.Voxel");
+		"####" A 1 A_JumpIf(invoker.light_on, "Ready");
+		Loop;
+	Off.Voxel:
+		FLVN A 0 A_CheckModel();
+		"####" A 0 A_JumpIf(invoker.current_state == 2, "Off");
+		"####" A 1 A_JumpIf(invoker.light_on, "Ready.Voxel");
 		Loop;
 	BatteryOverlay:
 		FLBT A 0 A_JumpIf(vr_flashlight_model == 0, "VBatteryOverlay");
