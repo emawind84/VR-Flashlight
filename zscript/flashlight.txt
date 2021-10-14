@@ -124,7 +124,7 @@ class TrackedSpotLight : Spotlight {
 		Vector3 s_pos;
 		Double s_angle, s_pitch;
 	
-        if(ready && on)
+		if(ready && on)
 		{
 			if(offhand)
 			{
@@ -139,8 +139,8 @@ class TrackedSpotLight : Spotlight {
 				s_pitch = toFollow.AttackPitch;
 			}
 
-			console.printf("offhand pitch = %d", toFollow.OffhandPitch);
-			console.printf("attack pitch = %d", toFollow.AttackPitch);
+			//console.printf("offhand pitch = %d", toFollow.OffhandPitch);
+			//console.printf("attack pitch = %d", toFollow.AttackPitch);
 			
 			offset = (toFollow.radius, 0, 0);
 			
@@ -171,7 +171,6 @@ Class S_FlashLight : Fist
 	float fl_inner_angle;
 	float fl_outer_angle;
 	int fl_flicker;
-	Weapon offhand_flashlight;
 	Int tic_count;
 	
 	override void BeginPlay()
@@ -179,6 +178,15 @@ Class S_FlashLight : Fist
 		fl_batt_capacity = CVar.GetCVar("vr_flashlight_batt_cap").GetInt() * 60 * 35;
 		fl_batt_counter = fl_batt_capacity;
 		fl_batt_level = 10;
+
+		if(vr_flashlight_mount < 2)
+		{
+			bOffhandWeapon = false;
+		}
+		else
+		{
+			bOffhandWeapon = true;
+		}
 	}
 	
 	override void Tick()
@@ -338,22 +346,56 @@ Class S_FlashLight : Fist
 		if(fl_outer_angle) fl.SpotOuterAngle = fl_outer_angle;
 		
 		//Turn off light when switched to a weapon
-		
-		if(!vr_flashlight_mount && owner.player.ReadyWeapon != self)
+		if(owner.player.ReadyWeapon != self && owner.player.OffhandWeapon != self)
 		{
 			fl.DeActivate(owner);
 			return;
 		}
+
+		fl.offhand = vr_flashlight_mount == 2;
 		
-		//Offhand flashlight routine
-		
-		Set_OffHandFlashlight();
+		if(vr_flashlight_mount < 2 && owner.player.ReadyWeapon != self)
+		{
+			bOffhandWeapon = false;
+			owner.player.PendingWeapon = self;
+			if (owner.player.OffhandWeapon == self) owner.player.OffhandWeapon = null;
+		}
+		else if(vr_flashlight_mount == 2 && owner.player.OffhandWeapon != self)
+		{
+			bOffhandWeapon = true;
+			owner.player.PendingWeapon = self;
+			if (owner.player.ReadyWeapon == self) owner.player.ReadyWeapon = null;
+		}
 	}
 	
 	override void DetachFromOwner()
 	{
 		if(f_light) f_light.destroy();
 		Super.DetachFromOwner();
+	}
+
+	action void WeaponReady()
+	{
+		if (vr_flashlight_mount == 2)
+			A_WeaponReady(WRF_ISOFFHAND);
+		else
+			A_WeaponReady();
+	}
+
+	action void Lower(int lowerspeed)
+	{
+		if (vr_flashlight_mount == 2)
+			A_Lower(lowerspeed, LAF_ISOFFHAND);
+		else
+			A_Lower(lowerspeed);
+	}
+
+	action void Raise(int raisespeed)
+	{
+		if (vr_flashlight_mount == 2)
+			A_Raise(raisespeed, LAF_ISOFFHAND);
+		else
+			A_Raise(raisespeed);
 	}
 	
 	action void A_Flashlight()
@@ -374,6 +416,8 @@ Class S_FlashLight : Fist
 	
 	action void A_CheckModel()
 	{
+		if (!player) return;
+
 		Int model_type = CVar.GetCVar("vr_flashlight_model").GetInt();
 		let fl = TrackedSpotLight(invoker.f_light);
 		
@@ -392,8 +436,12 @@ Class S_FlashLight : Fist
 			else
 				w_sprite = "FLVN";
 		}
-			
-		if (player) Player.GetPSprite(PSP_WEAPON).sprite = GetSpriteIndex(w_sprite);
+		
+		let psp = Player.FindPSprite(vr_flashlight_mount < 2 ? PSP_WEAPON : PSP_OFFHANDWEAPON);
+		if (psp != null)
+		{
+			psp.sprite = GetSpriteIndex(w_sprite);
+		}
 	}
 	
 	action void A_CheckPickupModel()
@@ -410,47 +458,6 @@ Class S_FlashLight : Fist
 
 		invoker.sprite = GetSpriteIndex(p_sprite);
 		invoker.A_SetScale(0.7);
-	}
-	
-	action void Set_OffHandFlashlight()
-	{
-		let pmo = invoker.owner.player.mo;
-		let fl = TrackedSpotLight(invoker.f_light);
-		
-		if(vr_flashlight_mount < 2 || invoker.owner.player.ReadyWeapon == invoker)
-		{
-			if(invoker.offhand_flashlight) invoker.offhand_flashlight.destroy();
-			invoker.owner.player.OffhandWeapon = null;
-			fl.offhand = false;
-			return;
-		}
-	
-		if(vr_flashlight_mount == 2)
-		{
-			// if(!fl.on)
-			// {
-			// 	if(invoker.offhand_flashlight) invoker.offhand_flashlight.destroy();
-			// 	invoker.owner.player.OffhandWeapon = null;
-			// 	return;
-			// }
-		
-			fl.offhand = true;
-			
-			let pmo = invoker.owner.player.mo;
-			
-			if(!invoker.offhand_flashlight)
-			{
-				invoker.offhand_flashlight = Weapon(Inventory(Spawn("OffhandFlashlight")));
-				invoker.offhand_flashlight.AttachToOwner (invoker.owner);
-				invoker.owner.player.OffhandWeapon = invoker.offhand_flashlight;
-				invoker.owner.player.PendingWeapon = WP_NOCHANGE;
-				pmo.BringUpWeapon();
-			}
-
-			OffhandFlashlight(invoker.offhand_flashlight).battery_level = invoker.fl_batt_level;
-			OffhandFlashlight(invoker.offhand_flashlight).battery_low = invoker.fl_batt_low_blink;
-			OffhandFlashlight(invoker.offhand_flashlight).light_on = fl.on;
-		}
 	}
 	
 	Default
@@ -472,16 +479,16 @@ Class S_FlashLight : Fist
 		Loop;
 	Ready:
 		FLTE A 0 A_CheckModel();
-		"####" A 0 A_Overlay(1001, "BatteryOverlay");
-		"####" A 1 A_WeaponReady;
+		"####" A 0 A_Overlay(1002, "BatteryOverlay");
+		"####" A 1 WeaponReady();
 		Loop;
 	Deselect:
 		FLTE A 0 A_CheckModel();
-		"####" A 1 A_Lower(60);
+		"####" A 1 Lower(60);
 		Loop;
 	Select:
 		FLTE A 0 A_CheckModel();
-		"####" A 1 A_Raise(60);
+		"####" A 1 Raise(60);
 		Loop;
 	Fire:
 		"####" A 0 A_FlashLight();
@@ -553,223 +560,6 @@ Class S_FlashLight : Fist
 		Stop;
 	VBatteryLevel1:
 		FLBV A 0 A_JumpIf(invoker.fl_batt_low_blink < 18, "VBatteryLevel0");
-		FLBV B 1;
-		Stop;
-	VBatteryLevel2:
-		FLBV C 1;
-		Stop;
-	VBatteryLevel3:
-		FLBV D 1;
-		Stop;
-	VBatteryLevel4:
-		FLBV E 1;
-		Stop;
-	VBatteryLevel5:
-		FLBV F 1;
-		Stop;
-	VBatteryLevel6:
-		FLBV G 1;
-		Stop;
-	VBatteryLevel7:
-		FLBV H 1;
-		Stop;
-	VBatteryLevel8:
-		FLBV I 1;
-		Stop;
-	VBatteryLevel9:
-		FLBV J 1;
-		Stop;
-	VBatteryLevel10:
-		FLBV K 1;
-		Stop;
-	Dummy:
-		FLTN A 0;
-		FLTV A 0;
-		FLVN A 0;
-		Stop;
-	}
-}
-
-Class OffhandFlashlight : Weapon
-{
-	Int battery_level;
-	Int battery_low;
-	Int current_state;
-	bool light_on;
-
-	Default
-	{
-	+INVISIBLE
-	+FRIENDLY
-	+NOBLOOD
-	+GHOST
-	+THRUGHOST
-	+THRUACTORS
-	+THRUSPECIES
-	+NONSHOOTABLE
-	+NOGRAVITY
-	-SHOOTABLE
-	+NOBLOCKMAP
-	-NOLIFTDROP
-	+NOTRIGGER
-	-BLOCKASPLAYER
-	+NOFRICTION
-	+NOFRICTIONBOUNCE
-	-FALLDAMAGE
-	+NOTELEPORT
-	-TELESTOMP
-	+NOTELEFRAG
-	+DONTDRAIN
-	-CANBLAST
-	+NOTIMEFREEZE
-	+DONTBLAST
-	+DONTTHRUST
-	+NOTARGET
-	+NOCLIP
-	+INVULNERABLE
-	+DONTMORPH
-	+DONTSQUASH
-	+NOTELEOTHER
-	+DONTGIB
-	+NOPAIN
-	-COUNTKILL
-	+NOTONAUTOMAP
-	
-	Health 99999;
-	Mass 0;
-	Radius 20;
-	Height 20;
-	Speed 1;
-	SeeSound "";
-	AttackSound "";
-	PainSound "";
-	DeathSound "";
-	ActiveSound "";
-	Tag "Flashlight";
-	XScale 0.21;
-	YScale -0.21;
-	}
-	
-	action void A_CheckModel()
-	{
-		Int model_type = CVar.GetCVar("vr_flashlight_model").GetInt();
-		String w_sprite;
-
-		if(model_type == 1)
-		{
-			if(invoker.light_on)
-				invoker.current_state = 1;
-			else
-				invoker.current_state = 2;
-		}
-		else
-		{
-			if(invoker.light_on)
-				invoker.current_state = 3;
-			else
-				invoker.current_state = 4;
-		}
-			
-		//sprite = GetSpriteIndex(w_sprite);
-	}
-	
-	States
-	{
-	Spawn:
-	Idle:
-	Ready:
-	Select:
-	Deselect:
-	Fire:
-		FLTE A 0 A_CheckModel();
-		"####" A 0 A_JumpIf(invoker.current_state == 3, "Ready.Voxel");
-		"####" A 0 A_JumpIf(invoker.light_on == false, "Off");
-		"####" A 0 A_Overlay(1001, "BatteryOverlay");
-		"####" A 1;
-		Loop;
-	Ready.Voxel:
-		FLTV A 0 A_CheckModel();
-		"####" A 0 A_JumpIf(invoker.current_state == 1, "Ready");
-		"####" A 0 A_JumpIf(invoker.light_on == false, "Off.Voxel");
-		"####" A 0 A_Overlay(1001, "BatteryOverlay");
-		"####" A 1;
-		Loop;
-	Off:
-		FLTN A 0 A_CheckModel();
-		"####" A 0 A_JumpIf(invoker.current_state == 4, "Off.Voxel");
-		"####" A 1 A_JumpIf(invoker.light_on, "Ready");
-		Loop;
-	Off.Voxel:
-		FLVN A 0 A_CheckModel();
-		"####" A 0 A_JumpIf(invoker.current_state == 2, "Off");
-		"####" A 1 A_JumpIf(invoker.light_on, "Ready.Voxel");
-		Loop;
-	BatteryOverlay:
-		FLBT A 0 A_JumpIf(vr_flashlight_model == 0, "VBatteryOverlay");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 0, "BatteryLevel0");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 1, "BatteryLevel1");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 2, "BatteryLevel2");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 3, "BatteryLevel3");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 4, "BatteryLevel4");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 5, "BatteryLevel5");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 6, "BatteryLevel6");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 7, "BatteryLevel7");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 8, "BatteryLevel8");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 9, "BatteryLevel9");
-		FLBT A 0 A_JumpIf(invoker.battery_level == 10, "BatteryLevel10");
-		Stop;
-	BatteryLevel0:
-		FLBT A 1;
-		Stop;
-	BatteryLevel1:
-		FLBT A 0 A_JumpIf(invoker.battery_low < 18, "BatteryLevel0");
-		FLBT B 1;
-		Stop;
-	BatteryLevel2:
-		FLBT C 1;
-		Stop;
-	BatteryLevel3:
-		FLBT D 1;
-		Stop;
-	BatteryLevel4:
-		FLBT E 1;
-		Stop;
-	BatteryLevel5:
-		FLBT F 1;
-		Stop;
-	BatteryLevel6:
-		FLBT G 1;
-		Stop;
-	BatteryLevel7:
-		FLBT H 1;
-		Stop;
-	BatteryLevel8:
-		FLBT I 1;
-		Stop;
-	BatteryLevel9:
-		FLBT J 1;
-		Stop;
-	BatteryLevel10:
-		FLBT K 1;
-		Stop;
-	VBatteryOverlay:
-		FLBV A 0 A_JumpIf(invoker.battery_level == 0, "VBatteryLevel0");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 1, "VBatteryLevel1");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 2, "VBatteryLevel2");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 3, "VBatteryLevel3");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 4, "VBatteryLevel4");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 5, "VBatteryLevel5");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 6, "VBatteryLevel6");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 7, "VBatteryLevel7");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 8, "VBatteryLevel8");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 9, "VBatteryLevel9");
-		FLBV A 0 A_JumpIf(invoker.battery_level == 10, "VBatteryLevel10");
-		Stop;
-	VBatteryLevel0:
-		FLBV A 1;
-		Stop;
-	VBatteryLevel1:
-		FLBV A 0 A_JumpIf(invoker.battery_low < 18, "VBatteryLevel0");
 		FLBV B 1;
 		Stop;
 	VBatteryLevel2:
