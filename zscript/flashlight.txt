@@ -10,6 +10,9 @@ Class S_FlashLightControl : EventHandler
 		PlayerInfo plr = players[e.PlayerNumber];
 		if(plr.ReadyWeapon) set_playerstartweapon = plr.ReadyWeapon.GetClassName();
 		plr.mo.setinventory("S_FlashLight", 1, false);
+		//plr.mo.setinventory("offhandfist", 1, false);
+		//let fist = Weapon(Inventory(plr.mo.Spawn("offhandfist")));
+		//fist.AttachToOwner(plr.mo);
 	}
 	
 	override void NetworkProcess(ConsoleEvent e)
@@ -159,7 +162,7 @@ class TrackedSpotLight : Spotlight {
     
 }
 
-Class S_FlashLight : Fist
+Class S_FlashLight : Weapon
 {
 	Actor f_light;
 	Bool f_light_on;
@@ -352,50 +355,13 @@ Class S_FlashLight : Fist
 			return;
 		}
 
-		fl.offhand = vr_flashlight_mount == 2;
-		
-		if(vr_flashlight_mount < 2 && owner.player.ReadyWeapon != self)
-		{
-			bOffhandWeapon = false;
-			owner.player.PendingWeapon = self;
-			if (owner.player.OffhandWeapon == self) owner.player.OffhandWeapon = null;
-		}
-		else if(vr_flashlight_mount == 2 && owner.player.OffhandWeapon != self)
-		{
-			bOffhandWeapon = true;
-			owner.player.PendingWeapon = self;
-			if (owner.player.ReadyWeapon == self) owner.player.ReadyWeapon = null;
-		}
+		fl.offhand = bOffhandWeapon;
 	}
 	
 	override void DetachFromOwner()
 	{
 		if(f_light) f_light.destroy();
 		Super.DetachFromOwner();
-	}
-
-	action void WeaponReady()
-	{
-		if (vr_flashlight_mount == 2)
-			A_WeaponReady(WRF_ISOFFHAND);
-		else
-			A_WeaponReady();
-	}
-
-	action void Lower(int lowerspeed)
-	{
-		if (vr_flashlight_mount == 2)
-			A_Lower(lowerspeed, LAF_ISOFFHAND);
-		else
-			A_Lower(lowerspeed);
-	}
-
-	action void Raise(int raisespeed)
-	{
-		if (vr_flashlight_mount == 2)
-			A_Raise(raisespeed, LAF_ISOFFHAND);
-		else
-			A_Raise(raisespeed);
 	}
 	
 	action void A_Flashlight()
@@ -417,6 +383,8 @@ Class S_FlashLight : Fist
 	action void A_CheckModel()
 	{
 		if (!player) return;
+		let weap = invoker == player.OffhandWeapon ? player.OffhandWeapon : player.ReadyWeapon;
+		if (!weap) return;
 
 		Int model_type = CVar.GetCVar("vr_flashlight_model").GetInt();
 		let fl = TrackedSpotLight(invoker.f_light);
@@ -437,7 +405,7 @@ Class S_FlashLight : Fist
 				w_sprite = "FLVN";
 		}
 		
-		let psp = Player.FindPSprite(vr_flashlight_mount < 2 ? PSP_WEAPON : PSP_OFFHANDWEAPON);
+		let psp = Player.FindPSprite(weap.bOffhandWeapon ? PSP_OFFHANDWEAPON : PSP_WEAPON);
 		if (psp != null)
 		{
 			psp.sprite = GetSpriteIndex(w_sprite);
@@ -479,16 +447,16 @@ Class S_FlashLight : Fist
 		Loop;
 	Ready:
 		FLTE A 0 A_CheckModel();
-		"####" A 0 A_Overlay(1002, "BatteryOverlay");
-		"####" A 1 WeaponReady();
+		"####" A 0 A_Overlay(1001, "BatteryOverlay");
+		"####" A 1 A_WeaponReady;
 		Loop;
 	Deselect:
 		FLTE A 0 A_CheckModel();
-		"####" A 1 Lower(60);
+		"####" A 1 A_Lower(60);
 		Loop;
 	Select:
 		FLTE A 0 A_CheckModel();
-		"####" A 1 Raise(60);
+		"####" A 1 A_Raise(60);
 		Loop;
 	Fire:
 		"####" A 0 A_FlashLight();
@@ -594,5 +562,21 @@ Class S_FlashLight : Fist
 		FLTV A 0;
 		FLVN A 0;
 		Stop;
+	}
+}
+
+class offhandfist : Fist
+{
+	default
+	{
+		Weapon.SelectionOrder 3700;
+		Weapon.Kickback 100;
+		Obituary "$OB_MPFIST";
+		Tag "$TAG_FIST";
+		+WEAPON.WIMPY_WEAPON;
+		+WEAPON.MELEEWEAPON;
+		-WEAPON.TWOHANDED;
+		+WEAPON.NOHANDSWITCH;
+		+WEAPON.OFFHANDWEAPON;
 	}
 }

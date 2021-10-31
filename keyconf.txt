@@ -1,1 +1,2 @@
 addslotdefault 0 S_FlashLight
+addslotdefault 0 offhandfist
