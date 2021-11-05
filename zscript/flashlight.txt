@@ -148,10 +148,10 @@ class TrackedSpotLight : Spotlight {
 			offset = (toFollow.radius, 0, 0);
 			
             A_SetAngle(s_angle + 90.0, 0);
-            Vector2 finalOffset2D = RotateVector ((offset.x, offset.y), s_angle - 90.0);                         
-            finalOffset = (finalOffset2D.x, finalOffset2D.y, offset.z);
+            //Vector2 finalOffset2D = RotateVector ((offset.x, offset.y), s_angle - 90.0);                         
+            //finalOffset = (finalOffset2D.x, finalOffset2D.y, offset.z);
             A_SetPitch(-s_pitch, SPF_INTERPOLATE);
-            SetOrigin(s_pos + finalOffset, true);
+            SetOrigin(s_pos, true);
         }
 		else if(on && toFollow)
 		{
@@ -162,7 +162,7 @@ class TrackedSpotLight : Spotlight {
     
 }
 
-Class S_FlashLight : Weapon
+Class S_FlashLight : Fist
 {
 	Actor f_light;
 	Bool f_light_on;
